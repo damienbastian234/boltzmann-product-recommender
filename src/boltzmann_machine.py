@@ -1,6 +1,7 @@
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 
 class BoltzmannMachine:
@@ -41,6 +42,18 @@ class BoltzmannMachine:
         )
         return self.sigmoid(activation)
 
+    def reconstruction_error(self, data):
+        """Calculate mean squared reconstruction error."""
+        data = np.asarray(data, dtype=float)
+        if data.ndim != 2 or data.shape[1] != self.n_visible:
+            raise ValueError(
+                f"Expected a 2D array with {self.n_visible} visible units."
+            )
+
+        hidden_probs = self.hidden_probabilities(data)
+        reconstructed = self.visible_probabilities(hidden_probs)
+        return float(np.mean((data - reconstructed) ** 2))
+
     
     def train(self, training_data, epochs=100):
         """Train the RBM using one-step Contrastive Divergence."""
@@ -60,8 +73,8 @@ class BoltzmannMachine:
             # Negative phase: reconstruct preferences
             # Negative phase: reconstruct and sample visible states
             negative_visible_probs = self.visible_probabilities(
-             positive_hidden_states
-            )
+                    positive_hidden_states
+                )
 
             negative_visible_states = (
                 np.random.random(negative_visible_probs.shape)
@@ -164,7 +177,41 @@ if __name__ == "__main__":
 
     weights_before_training = model.weights.copy()
 
+    initial_error = model.reconstruction_error(user_preferences)
+    print("Initial reconstruction error:", round(initial_error, 4))
+
     model.train(user_preferences, epochs=100)
+
+    final_error = model.reconstruction_error(user_preferences)
+    print("Final reconstruction error:", round(final_error, 4))
+
+
+    # Plot reconstruction error before and after training
+    errors = [initial_error, final_error]
+    labels = ["Before Training", "After Training"]
+
+    plt.figure(figsize=(8, 5))
+    bars = plt.bar(labels, errors)
+
+    plt.title("RBM Reconstruction Error")
+    plt.ylabel("Mean Squared Error")
+    plt.ylim(0, max(errors) * 1.2)
+
+    for bar, error in zip(bars, errors):
+        plt.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height(),
+            f"{error:.4f}",
+            ha="center",
+            va="bottom"
+        )
+
+    plt.tight_layout()
+    plt.savefig("results/reconstruction_error.png", dpi=300)
+    print("Chart saved to results/reconstruction_error.png")
+    plt.show()
+    plt.close()
+
 
     print(
         "Weights changed after training:",
@@ -187,4 +234,25 @@ if __name__ == "__main__":
     print(f"\nRecommendations for user {dataset.iloc[user_index]['user_id']}:")
     for product, probability in recommendations:
         print(f"{product}: {probability:.4f}")
+
+    
+    print("\nRecommendations for all users:")
+
+    for index, row in dataset.iterrows():
+        user_id = row["user_id"]
+        preferences = user_preferences[index]
+
+        recommendations = model.recommend(
+            preferences, product_names, top_n=3
+        )
+
+        print(f"\nUser {user_id}:")
+        if recommendations:
+            for product, probability in recommendations:
+                print(f"  {product}: {probability:.4f}")
+        else:
+            print("  No eligible products to recommend.")
+
+
+
 
